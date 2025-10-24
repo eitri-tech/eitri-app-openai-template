@@ -17,7 +17,11 @@ type AvailableTools =
   | "getOrder"
   | "getProfile"
   | "updateProfile"
-  | "goToCheckout";
+  | "goToCheckout"
+  | "getCategories"
+  | "ask"
+  | "getFacets"
+  | "getProductsByFacets";
 
 /**
  * Hook para gerenciar chamadas de tools com estado de loading e erro

@@ -95,18 +95,20 @@ export function useOpenAI() {
     [isAvailable]
   );
 
-  const getToolInput = useCallback((): string | null => {
+  const getToolInput = useCallback(<
+    T = {
+      query?: string;
+      intention?: string;
+    }
+  >(): T | null => {
     if (!isAvailable) {
       console.warn("OpenAI not available");
       return null;
     }
 
     try {
-      const response = window.openai.toolInput as {
-        query?: string;
-        intention?: string;
-      };
-      return response.query;
+      const response = window.openai.toolInput as T;
+      return response;
     } catch (error) {
       console.error("Error getting tool input:", error);
       return null;
