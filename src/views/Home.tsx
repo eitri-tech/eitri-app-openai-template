@@ -16,7 +16,7 @@ interface SearchProductsResponse {
 interface ToolInput {
   query: string;
   intention?: string;
-  keywords: string[]
+  keywords: string[];
 }
 
 interface FacetItem {
@@ -32,35 +32,37 @@ export default function Home(props) {
   // Estados para gerenciar facets e cache
   const [availableFacets, setAvailableFacets] = useState<FacetItem[]>([]);
   const [selectedFacetPath, setSelectedFacetPath] = useState<string>("");
-  const [productsCache, setProductsCache] = useState<Record<string, Product[]>>({});
+  const [productsCache, setProductsCache] = useState<Record<string, Product[]>>(
+    {}
+  );
 
   // Estado único de loading
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
   const [isLoadingProducts, setIsLoadingProducts] = useState<boolean>(false);
 
-  const {
-    data,
-    execute: searchProducts,
-  } = useToolCall<SearchProductsResponse>("getProductsByFacets", {
-    vtexConfig,
-  });
-
+  const { data, execute: searchProducts } = useToolCall<SearchProductsResponse>(
+    "getProductsByFacets",
+    {
+      vtexConfig,
+    }
+  );
 
   const { execute: askToEitriAI } = useToolCall<any>("ask", {
     vtexConfig,
-  })
+  });
 
   const { execute: getCategories } = useToolCall<any>("getCategories", {
     vtexConfig,
-  })
+  });
 
   const { execute: getFacets } = useToolCall<any>("getFacets", {
     vtexConfig,
-  })
+  });
 
-  const products = selectedFacetPath && productsCache[selectedFacetPath]
-    ? productsCache[selectedFacetPath]
-    : data?.products || [];
+  const products =
+    selectedFacetPath && productsCache[selectedFacetPath]
+      ? productsCache[selectedFacetPath]
+      : data?.products || [];
 
   // Função para buscar produtos por facet (com cache)
   const loadProductsByFacet = async (facetPath: string) => {
@@ -93,24 +95,26 @@ export default function Home(props) {
     injectGlobalStyles();
     const loadFacets = async () => {
       setIsInitialLoading(true);
-      console.log("Carregando categorias e facets")
+      console.log("Carregando categorias e facets");
 
-      const categories = await getCategories()
+      const categories = await getCategories();
 
       const prompt = `
       Você é um assistente virtual que irá me ajudar a encontrar produtos na loja.
       Query: ${toolInput.query}
-      Keywords: ${toolInput.keywords.join(', ')}
+      Keywords: ${toolInput.keywords?.join(", ")}
 
       Abaixo eu tenho as categorias disponíveis na loja, você deve me ajudar a encontrar produtos que sejam relevantes para o usuário.
-      categorias: ${JSON.stringify(categories.map((category) => ({
-        name: category.name,
-        id: category.id,
-        children: category.children.map((child) => ({
-          name: child.name,
-          id: child.id,
+      categorias: ${JSON.stringify(
+        categories.map((category) => ({
+          name: category.name,
+          id: category.id,
+          children: category.children.map((child) => ({
+            name: child.name,
+            id: child.id,
+          })),
         }))
-      })))}
+      )}
 
       Você me deve retornar somente um JSON com as categorias com suas sub-categorias relevantes para o usuário, como abaixo e evite duplicações:
       {
@@ -121,34 +125,43 @@ export default function Home(props) {
           subCategoryId: number
         }>
       }
-    `
+    `;
 
       const result = await askToEitriAI({
         query: prompt,
-        vtexConfig
+        vtexConfig,
       });
 
-      const dataString = result?.replace(/```json/g, '').replace(/```/g, '')
+      const dataString = result?.replace(/```json/g, "").replace(/```/g, "");
 
-      const data = JSON.parse(dataString) as { categories: { name: string, id: number, subCategoryName: string, subCategoryId: number }[] }
+      const data = JSON.parse(dataString) as {
+        categories: {
+          name: string;
+          id: number;
+          subCategoryName: string;
+          subCategoryId: number;
+        }[];
+      };
 
-      const facetsPromises = []
+      const facetsPromises = [];
 
       for (const category of data.categories) {
-        facetsPromises.push(getFacets({
-          query: category.name + " " + category.subCategoryName,
-          vtexConfig
-        }))
+        facetsPromises.push(
+          getFacets({
+            query: category.name + " " + category.subCategoryName,
+            vtexConfig,
+          })
+        );
       }
 
-      const facets = await Promise.all(facetsPromises)
+      const facets = await Promise.all(facetsPromises);
 
-      console.log("Facets obtidos:", facets)
+      console.log("Facets obtidos:", facets);
 
       const facetsPrompt = `
       Você é um assistente virtual que irá me ajudar a encontrar produtos na loja.
       Query: ${toolInput.query}
-      Keywords: ${toolInput.keywords.join(', ')}
+      Keywords: ${toolInput.keywords?.join(", ")}
 
       Abaixo eu tenho as facets disponíveis na loja, você deve me ajudar a encontrar produtos que sejam relevantes para o usuário que fazem match com as categorias e com os keywords. Evite duplicações, se a sub-categoria já estiver presente em um categoria "pai" não duplique adicionando em outra.
 
@@ -168,23 +181,25 @@ export default function Home(props) {
       }
 
       IMPORTANTE: o campo "label" deve ser um nome amigável para exibição ao usuário (ex: "Camisetas Masculinas", "Calças Jeans").
-      `
+      `;
 
       const resultFacets = await askToEitriAI({
         query: facetsPrompt,
-        vtexConfig
+        vtexConfig,
       });
 
-      const facetsDataString = resultFacets?.replace(/```json/g, '').replace(/```/g, '')
+      const facetsDataString = resultFacets
+        ?.replace(/```json/g, "")
+        .replace(/```/g, "");
       const facetsData = JSON.parse(facetsDataString) as {
         facets: Array<{
-          label: string,
-          categoryKey: string,
-          categoryValue: string,
-          subCategoryKey: string,
-          subCategoryValue: string
-        }>
-      }
+          label: string;
+          categoryKey: string;
+          categoryValue: string;
+          subCategoryKey: string;
+          subCategoryValue: string;
+        }>;
+      };
 
       // Transforma os facets no formato correto: /category-key/category-value/sub-category-key/sub-category-value
       const formattedFacets: FacetItem[] = facetsData.facets.map((facet) => ({
@@ -192,7 +207,7 @@ export default function Home(props) {
         path: `/${facet.categoryKey}/${facet.categoryValue}/${facet.subCategoryKey}/${facet.subCategoryValue}`,
       }));
 
-      console.log("Facets formatados:", formattedFacets)
+      console.log("Facets formatados:", formattedFacets);
 
       setAvailableFacets(formattedFacets);
 
@@ -228,7 +243,7 @@ export default function Home(props) {
 
   return (
     <Page
-      className="w-full h-full light:bg-white dark:bg-[#212121] flex flex-col items-center justify-center"
+      className="w-full h-full bg-white dark:bg-[#212121] flex flex-col items-center justify-center"
       statusBarTextColor="white"
     >
       <Toast
@@ -241,16 +256,16 @@ export default function Home(props) {
         <View
           className="w-full overflow-x-auto overflow-y-hidden"
           style={{
-            WebkitOverflowScrolling: 'touch',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: "touch",
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
           }}
         >
           <View
             className="flex flex-row gap-2 py-2 px-1"
             style={{
-              flexWrap: 'nowrap',
-              minWidth: 'min-content',
+              flexWrap: "nowrap",
+              minWidth: "min-content",
             }}
           >
             {isInitialLoading ? (
